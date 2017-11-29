@@ -1,2 +1,6 @@
 *.pyc
 data
+logs
+mctest
+squad
+babi/*.pyc
