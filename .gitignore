@@ -1,5 +1,6 @@
 *.pyc
 data
+results
 logs
 mctest
 squad

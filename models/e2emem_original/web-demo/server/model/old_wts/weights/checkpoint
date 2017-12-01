@@ -1,0 +1,2 @@
+model_checkpoint_path: "lr=0.01_eps=1e-08_mgn=40.0_hp=3_es=40_ms=50_reg=0.02"
+all_model_checkpoint_paths: "lr=0.01_eps=1e-08_mgn=40.0_hp=3_es=40_ms=50_reg=0.02"
