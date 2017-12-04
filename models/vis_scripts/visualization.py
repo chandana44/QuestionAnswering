@@ -5,13 +5,19 @@ import matplotlib.pyplot as plt
 import seaborn as sns; sns.set()
 import collections
 
-# attn_dir = 'attention_vis/attn/'
-# pred_dir = 'attention_vis/pred/'
-# truth_dir = 'attention_vis/truth/'
-attn_dir = 'tmp/single_sharing_no_encode/'
-pred_dir = 'tmp/single_sharing_no_encode/'
-truth_dir = 'tmp/single_sharing_no_encode/'
-data_dir = '../sujitpal/data/tasks_1-20_v1-2/en'
+attn_dir = '../../results/attention_vis/attn/'
+pred_dir = '../../results/attention_vis/pred/'
+truth_dir = '../../results/attention_vis/truth/'
+# attn_dir = '../../results/tmp/single_sharing_no_encode/'
+# pred_dir = '../../results/tmp/single_sharing_no_encode/'
+# truth_dir = '../../results/tmp/single_sharing_no_encode/'
+# attn_dir = '../../results/tmp/single_sharing/'
+# pred_dir = '../../results/tmp/single_sharing/'
+# truth_dir = '../../results/tmp/single_sharing/'
+# attn_dir = '../../results/tmp/single_sharing_relu_wencode/'
+# pred_dir = '../../results/tmp/single_sharing_relu_wencode/'
+# truth_dir = '../../results/tmp/single_sharing_relu_wencode/'
+data_dir = '../../data/tasks_1-20_v1-2/en'
 task_id = 2
 
 def load_task(data_dir, task_id, only_supporting=False):
@@ -110,75 +116,137 @@ def heatmap_attention(mat_in, data):
 	plt.tight_layout()
 	plt.show()
 
+def error_by_type(misclassified, attn_mat, test_data):
+	imagination, okay_memory, poor_memory, misinterpret = 0,0,0,0
+	total_wrong = float(len(misclassified))
+	for i in misclassified:
+		attn_win_per_hop = np.argmax(attn_mat[:,i,:], axis=1)
+		attn_win = attn_win_per_hop[-1]
+		# print 'Length: '+ str(len(test_data[i][0]))
+		# print  'attn: ' + str(attn_win)
+		if attn_win >= len(test_data[i][0]):
+			imagination += 1
+		elif attn_win not in test_data[i][3]:
+			poor_memory += 1
+		elif truth_mat[i] not in test_data[i][0][attn_win]:
+			okay_memory += 1
+		elif attn_win in test_data[i][3]:
+			misinterpret += 1
+	print('Imagine: '+str((imagination/total_wrong)*100))
+	print('PoorMemory: '+str((poor_memory/total_wrong)*100))
+	print('OkayMemory: '+str((okay_memory/total_wrong)*100))
+	print('Misinterpret: '+str((misinterpret/total_wrong)*100))
+	return [imagination, okay_memory, poor_memory, misinterpret]
+
+def vis_attn(attn_mat, test_data, wrong_idx, print_lim=10):
+	print_min = 5
+	visualize_wrong = [c for (c,(i,j,k,l)) in enumerate(test_data) if len(i)<=print_lim and len(i)>=print_min and c in wrong_idx]
+	print visualize_wrong
+	print(test_data[visualize_wrong[3]])
+	print(predicted_mat[visualize_wrong[3]])
+	vis_id = visualize_wrong[np.random.choice(range(len(visualize_wrong)),1)]
+	vis_id = 151
+	plt_id_max = min(print_lim, len(test_data[vis_id][0]))
+	mat_in = attn_mat[:, vis_id, :plt_id_max].transpose()
+	heatmap_attention(mat_in, test_data[vis_id])
+
+def error_by_sl(misclassified, test_data):
+	sl_wrong_freq = collections.defaultdict(int)
+	sl_all = collections.defaultdict(int)
+	for i in misclassified:
+		f = []
+		for s in test_data[i][0]:
+			if s:
+				f.append(s)
+		sl_wrong_freq[len(f)] += 1
+	for i in range(0, len(test_data)):
+		f = []
+		for s in test_data[i][0]:
+			if s:
+				f.append(s)
+		sl_all[len(f)] += 1
+	print sl_all
+	print sl_wrong_freq
+	x_axis = []
+	y_axis = []
+	for key in sorted(sl_wrong_freq.iterkeys()):
+		x_axis.append(key)
+		y_axis.append(sl_wrong_freq[key])
+	plt.plot(x_axis, y_axis)
+	x_axis = []
+	y_axis = []
+	for key in sorted(sl_all.iterkeys()):
+		x_axis.append(key)
+		y_axis.append(sl_all[key])
+	plt.plot(x_axis, y_axis)
+	plt.show()
+
 if __name__ == '__main__':
 	attn_mat = np.load(os.path.join(attn_dir,'attention_task'+str(task_id)+'.npy'))
 	predicted_mat = np.load(os.path.join(pred_dir,'pred_task'+str(task_id)+'.npy'))
 	truth_mat = np.load(os.path.join(truth_dir,'truth_task'+str(task_id)+'.npy'))
 	idx = predicted_mat!=truth_mat
 	idx = [c for c,v in enumerate(idx) if v == True]
+	corr_idx = predicted_mat==truth_mat
+	corr_idx = [c for c,v in enumerate(corr_idx) if v == True]
 	_, test_data = load_task(data_dir, task_id)
 	misclassified = [c for (c,(i,j,k,l)) in enumerate(test_data) if c in idx]
 	print len(misclassified)
 	if len(misclassified) > 0:
-
 		# Cause of error
-		imagination, okay_memory, poor_memory, misinterpret = 0,0,0,0
-		total_wrong = float(len(misclassified))
-		for i in misclassified:
-			attn_win_per_hop = np.argmax(attn_mat[:,i,:], axis=1)
-			attn_win = attn_win_per_hop[-1]
-			# print 'Length: '+ str(len(test_data[i][0]))
-			# print  'attn: ' + str(attn_win)
-			if attn_win >= len(test_data[i][0]):
-				imagination += 1
-			elif attn_win not in test_data[i][3]:
-				poor_memory += 1
-			elif truth_mat[i] not in test_data[i][0][attn_win]:
-				okay_memory += 1
-			elif attn_win in test_data[i][3]:
-				misinterpret += 1
-		# print(imagination+poor_memory+okay_memory+misinterpret)
-		# print(total_wrong)
-		print('Imagine: '+str((imagination/total_wrong)*100))
-		print('PoorMemory: '+str((poor_memory/total_wrong)*100))
-		print('OkayMemory: '+str((okay_memory/total_wrong)*100))
-		print('Misinterpret: '+str((misinterpret/total_wrong)*100))
-
+		errors = error_by_type(misclassified, attn_mat, test_data)
 		# Error frequency by sentence length
-		sl_wrong_freq = collections.defaultdict(int)
-		for i in misclassified:
-			f = []
-			for s in test_data[i][0]:
-				if s:
-					f.append(s)
-				#print t
-			sl_wrong_freq[len(f)] += 1
-
-		# sl_corr_freq = collections.defaultdict(int)
-		# corr_classified = [c for (c,(i,j,k,l)) in enumerate(test_data) if c not in idx]
-		# for i in corr_classified:
-		# 	for s in test_data[i]:
-		# 		t = [i for i in s if i]
-		# 	sl_corr_freq[len(t)] += 1
-		x_axis = []
-		y_axis = []
-		for key in sorted(sl_wrong_freq.iterkeys()):
-			x_axis.append(key)
-			y_axis.append(sl_wrong_freq[key])
-		plt.plot(x_axis, y_axis)
-		plt.show()
-
+		error_by_sl(misclassified, test_data)
 		# Visualize errors
-		print_lim = 10
-		visualize_wrong= [c for (c,(i,j,k,l)) in enumerate(test_data) if len(i)<=print_lim and c in idx]
-		#print(visualize_wrong)
-		print(test_data[visualize_wrong[3]])
-		mat_in = attn_mat[:,visualize_wrong[3],:min(print_lim, len(test_data[visualize_wrong[3]][0]))].transpose()
-		heatmap_attention(mat_in, test_data[visualize_wrong[3]])
+		vis_attn(attn_mat, test_data, idx)
 
-	print_lim = 10
-	visualize_correct = [c for (c,(i,j,k,l)) in enumerate(test_data) if len(i)<=print_lim and c not in idx]
-	#print(visualize_correct)
-	print(test_data[visualize_correct[4]])
-	mat_in = attn_mat[:,visualize_correct[4],:min(print_lim, len(test_data[visualize_correct[4]][0]))].transpose()
-	heatmap_attention(mat_in, test_data[visualize_correct[4]])
+	# Visualize truth
+	vis_attn(attn_mat, test_data, corr_idx)
+
+	# Did layer 0 attention pick the right candidate?
+	corr_attn = 0.0
+	for i in range(len(test_data)):
+		attn_win_per_hop = np.argmax(attn_mat[:,i,:], axis=1)
+		attn_win = attn_win_per_hop[0]
+		f = []
+		for j in test_data[i][0]:
+			if j:
+				f.append(j)
+		if attn_win < len(f):
+			sen_win = f[attn_win]
+			query = test_data[i][1]
+			# print sen_win
+			# print query
+			for w in sen_win:
+				if w in query and w not in ['the', 'is']:
+					corr_attn += 1
+					break
+	print('Correct attn_layer0: ' + str((corr_attn/len(test_data))*100))
+
+	corr_attn = 0.0
+	examples = []
+	for i in range(len(test_data)):
+		attn_win_per_hop = np.argmax(attn_mat[:,i,:], axis=1)
+		attn_win_0 = attn_win_per_hop[0]
+		attn_win_last = attn_win_per_hop[-1]
+		f = []
+		for j in test_data[i][0]:
+			if j:
+				f.append(j)
+		if attn_win_0 < len(f) and attn_win_last < len(f):
+			sen_win_0 = f[attn_win_0]
+			sen_win_last = f[attn_win_last]
+			query = test_data[i][1]
+			answer = test_data[i][2]
+			# print sen_win_0
+			# print sen_win_last
+			# print query
+			for w in sen_win_0:
+				if w in query and w not in ['the', 'is']:
+					for ans in sen_win_last:
+						if ans in answer:
+							corr_attn += 1
+							examples.append(i)
+							break
+	print examples
+	print('Correct attn_layer0_last: ' + str((corr_attn/len(test_data))*100))
