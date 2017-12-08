@@ -64,8 +64,8 @@ class MemN2N(object):
         max_grad_norm=40.0,
         nonlin=None,
         initializer=tf.random_normal_initializer(stddev=0.1),
-        #encoding=position_encoding,
-        encoding=no_encoding,
+        encoding=position_encoding,
+        #encoding=no_encoding,
         session=tf.Session(),
         l2 = 0.02,
         lr = 0.01,
@@ -193,9 +193,10 @@ class MemN2N(object):
             A = tf.concat([ nil_word_slot, self._init([self._vocab_size-1, self._embedding_size]) ], 0)
             B = tf.concat([ nil_word_slot, self._init([self._vocab_size-1, self._embedding_size]) ], 0)
             C = tf.concat([ nil_word_slot, self._init([self._vocab_size-1, self._embedding_size]) ], 0)
-            #self.A = tf.Variable(A, name="A")
-            #self.B = tf.Variable(B, name="B")
-            #self.C = tf.Variable(C, name="C")
+            self.glove_embedding_mat = tf.constant(self.word_vectors.vectors, name='glove_embedding')
+            self.A = self.glove_embedding_mat
+            self.B = self.glove_embedding_mat
+            self.C = self.glove_embedding_mat
 
             self.TA = tf.Variable(self._init([self._memory_size, self._embedding_size]), name='TA')
             self.TC = tf.Variable(self._init([self._memory_size, self._embedding_size]), name='TC')
@@ -214,32 +215,40 @@ class MemN2N(object):
 
     def _inference(self, stories, queries):
         with tf.variable_scope(self._name + str(2)):
-            q_emb = tf.nn.embedding_lookup(self.word_vectors.vectors, queries)
-            # print('Query Embedding')
-            # print(q_emb)
+            print(queries)
+            print(stories)
+            #q_emb = tf.nn.embedding_lookup(self.word_vectors.vectors, queries)
+            q_emb = tf.nn.embedding_lookup(self.glove_embedding_mat, queries)
+            print('Query Embedding')
+            print(q_emb)
+            print(self._encoding)
             u_0 = tf.reduce_sum(q_emb * self._encoding, 1)
+            print(u_0)
             u = [u_0]
             self.probs_hops = []
             for hop_iter in range(self._hops):
-                m_emb = tf.nn.embedding_lookup(self.word_vectors.vectors, stories)
-                # print('Story Embedding')
+                m_emb = tf.nn.embedding_lookup(self.glove_embedding_mat, stories)
+                print('Story Embedding')
                 # print(m_emb)
                 m = tf.reduce_sum(m_emb * self._encoding, 2) + self.TA
-                # print('m')
+                print('m')
                 # print(m)
                 # hack to get around no reduce_dot
                 u_temp = tf.transpose(tf.expand_dims(u[-1], -1), [0, 2, 1])
                 dotted = tf.reduce_sum(m * u_temp, 2)
-                # print('dotted')
+                print('dotted')
                 # print(dotted)
 
                 # Calculate probabilities
-                probs = tf.nn.softmax(dotted)
+                max_range = tf.reduce_max(dotted, reduction_indices=[0])
+                min_range = tf.reduce_min(dotted, reduction_indices=[0])
+                probs = (dotted - min_range)/(max_range - min_range)
+                #probs = tf.nn.softmax(dotted)
                 self.probs_hops.append(probs)
 
                 probs_temp = tf.transpose(tf.expand_dims(probs, -1), [0, 2, 1])
 
-                c_emb = tf.nn.embedding_lookup(self.word_vectors.vectors, stories)
+                c_emb = tf.nn.embedding_lookup(self.glove_embedding_mat, stories)
                 c = tf.reduce_sum(c_emb * self._encoding, 2) + self.TC
 
                 c_temp = tf.transpose(c, [0, 2, 1])
@@ -331,7 +340,7 @@ class MemN2N(object):
             answers: Tensor (None, vocab_size)
         """
         feed_dict = {self._stories: stories, self._queries: queries}
-        return self._sess.run([self.A, self.B, self.C, self.TA, self.TC, self.H, self.W, self.predict_op, self.probs_hops, self.predict_proba_op], feed_dict=feed_dict)
+        return self._sess.run([self.glove_embedding_mat, self.B, self.C, self.TA, self.TC, self.H, self.W, self.predict_op, self.probs_hops, self.predict_proba_op], feed_dict=feed_dict)
 
     def get_val_acc_summary(self, stories, queries, answers):
         feed_dict = {self._stories: stories, self._queries: queries, self._val_answers: answers}

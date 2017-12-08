@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import os
 import re
 import numpy as np
-
+from sets import Set
 
 def load_task(data_dir, task_id, only_supporting=False):
     '''Load the nth task. There are 20 tasks in total.
@@ -80,6 +80,47 @@ def get_stories(f, only_supporting=False):
     with open(f) as f:
         return parse_stories(f.readlines(), only_supporting=only_supporting)
 
+def create_small_embedding(data, word_vectors, sentence_size):
+    """
+    Create relativized vectors from glove embedding
+    """
+    small_indexer = Indexer()
+    small_vectors = []
+    vocab_set = Set()
+
+    for story, query, answer in data:
+        # Get query vocab
+        query_set = {w for w in query}
+        vocab_set = vocab_set.union(query_set)
+        ss = []
+
+        # Get sentence vocab
+        for i, sentence in enumerate(story, 1):
+            ls = max(0, sentence_size - len(sentence))
+            ss.append([word_vectors.word_indexer.get_index(w, False) for w in sentence] + [0] * ls)
+            sentence_set = {w for w in sentence}
+        vocab_set = vocab_set.union(sentence_set)
+
+        # Get answer voca
+        ans_set = {a for a in answer}
+        vocab_set = vocab_set.union(ans_set)
+
+
+    print vocab_set
+    print len(vocab_set)
+    small_indexer.get_index("UNK")
+    small_vectors.append(word_vectors.get_embedding("UNK"))
+    for w in vocab_set:
+        print w
+        small_indexer.get_index(w)
+        small_vectors.append(word_vectors.get_embedding(w))
+
+    # small_indexer.get_index("UNK")
+    # small_vectors.append(np.zeros(vectors[0].shape[0]))
+
+    small_embedding = WordEmbeddings(small_indexer, np.array(small_vectors))
+
+    return small_embedding
 
 def vectorize_data(data, word_vectors, word_idx, sentence_size, memory_size):
     """
@@ -95,14 +136,21 @@ def vectorize_data(data, word_vectors, word_idx, sentence_size, memory_size):
     S = []
     Q = []
     A = []
+    # small_indexer = Indexer()
+    # small_vectors = []
+    # vocab_set = Set()
+
     for story, query, answer in data:
         lq = max(0, sentence_size - len(query))
         q = [word_vectors.word_indexer.get_index(w, False) for w in query] + [0] * lq
-
+        # query_set = {w for w in query}
+        # vocab_set = vocab_set.union(query_set)
         ss = []
         for i, sentence in enumerate(story, 1):
             ls = max(0, sentence_size - len(sentence))
             ss.append([word_vectors.word_indexer.get_index(w, False) for w in sentence] + [0] * ls)
+        #     sentence_set = {w for w in sentence}
+        # vocab_set = vocab_set.union(sentence_set)
 
         if len(ss) > memory_size:
             # Use Jaccard similarity to determine the most relevant sentences
@@ -122,10 +170,25 @@ def vectorize_data(data, word_vectors, word_idx, sentence_size, memory_size):
         y = np.zeros(len(word_idx) + 1)  # 0 is reserved for nil word
         for a in answer:
             y[word_idx[a]] = 1
+        # ans_set = {a for a in answer}
+        # vocab_set = vocab_set.union(ans_set)
 
         S.append(ss)
         Q.append(q)
         A.append(y)
+
+    # print vocab_set
+    # print len(vocab_set)
+    # for w in vocab_set:
+    #     print w
+    #     small_indexer.get_index(w)
+    #     small_vectors.append(word_vectors.get_embedding(w))
+
+    # small_indexer.get_index("UNK")
+    # small_vectors.append(np.zeros(vectors[0].shape[0]))
+
+    # small_embedding = WordEmbeddings(small_indexer, np.array(small_vectors))
+
     return np.array(S), np.array(Q), np.array(A)
 
 
@@ -196,7 +259,8 @@ class Indexer(object):
         if (index not in self.ints_to_objs):
             return None
         else:
-            return self.objs_to_ints["UNK"]
+            #return self.objs_to_ints["UNK"]
+            return self.ints_to_objs[index]
 
     def contains(self, object):
         return self.index_of(object) != -1

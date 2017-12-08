@@ -8,6 +8,10 @@ import collections
 attn_dir = '../../results/attention_vis/attn/'
 pred_dir = '../../results/attention_vis/pred/'
 truth_dir = '../../results/attention_vis/truth/'
+
+attn_dir = '../../results/tmp/small_glove_embeddings/'
+pred_dir = attn_dir
+truth_dir = attn_dir
 # attn_dir = '../../results/tmp/single_sharing_no_encode/'
 # pred_dir = '../../results/tmp/single_sharing_no_encode/'
 # truth_dir = '../../results/tmp/single_sharing_no_encode/'
@@ -18,7 +22,7 @@ truth_dir = '../../results/attention_vis/truth/'
 # pred_dir = '../../results/tmp/single_sharing_relu_wencode/'
 # truth_dir = '../../results/tmp/single_sharing_relu_wencode/'
 data_dir = '../../data/tasks_1-20_v1-2/en'
-task_id = 2
+task_id = 1
 
 def load_task(data_dir, task_id, only_supporting=False):
     '''Load the nth task. There are 20 tasks in total.
@@ -141,12 +145,19 @@ def error_by_type(misclassified, attn_mat, test_data):
 def vis_attn(attn_mat, test_data, wrong_idx, print_lim=10):
 	print_min = 5
 	visualize_wrong = [c for (c,(i,j,k,l)) in enumerate(test_data) if len(i)<=print_lim and len(i)>=print_min and c in wrong_idx]
-	print visualize_wrong
-	print(test_data[visualize_wrong[3]])
-	print(predicted_mat[visualize_wrong[3]])
+
 	vis_id = visualize_wrong[np.random.choice(range(len(visualize_wrong)),1)]
-	vis_id = 151
-	plt_id_max = min(print_lim, len(test_data[vis_id][0]))
+	print visualize_wrong
+	print(test_data[vis_id])
+	print(predicted_mat[vis_id])
+	#vis_id = 151
+	f = []
+	ylabel = test_data[vis_id][0]
+	for sent in ylabel:
+		if sent:
+			s = ' '.join(sent)
+			f.append(s)
+	plt_id_max = min(print_lim, len(f))
 	mat_in = attn_mat[:, vis_id, :plt_id_max].transpose()
 	heatmap_attention(mat_in, test_data[vis_id])
 
@@ -189,7 +200,7 @@ if __name__ == '__main__':
 	idx = [c for c,v in enumerate(idx) if v == True]
 	corr_idx = predicted_mat==truth_mat
 	corr_idx = [c for c,v in enumerate(corr_idx) if v == True]
-	_, test_data = load_task(data_dir, task_id)
+	train_data, test_data = load_task(data_dir, task_id)
 	misclassified = [c for (c,(i,j,k,l)) in enumerate(test_data) if c in idx]
 	print len(misclassified)
 	if len(misclassified) > 0:
